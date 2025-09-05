@@ -11,6 +11,7 @@
     "issue-aadhaar": "npx hardhat run scripts/03-issue-aadhaar.js --network localhost",
     "request-verification": "npx hardhat run scripts/04-request-verification.js --network localhost",
     "complete-verification": "npx hardhat run scripts/05-complete-verification.js --network localhost",
+    "revoke-aadhaar": "npx hardhat run scripts/06-revoke-aadhaar.js --network localhost",
     "demo": "npm run deploy && npm run issue-aadhaar && npm run request-verification && npm run complete-verification",
     "node": "npx hardhat node",
     "clean": "npx hardhat clean"

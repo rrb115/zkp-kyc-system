@@ -21,7 +21,7 @@ contract Over18Verifier {
     mapping(uint256 => VerificationRequest) public verificationRequests;
     mapping(address => uint256[]) public userRequests;
     mapping(address => uint256[]) public requesterRequests;
-    mapping(uint256 => bool) public usedNullifiers; // Mapping to store used nullifiers
+    mapping(uint256 => bool) public usedNullifiers;
     
     uint256 public nextRequestId = 1;
     uint256 public verificationFee = 0.001 ether;
@@ -63,7 +63,7 @@ contract Over18Verifier {
         uint[2] calldata pA,
         uint[2][2] calldata pB,
         uint[2] calldata pC,
-        uint[8] calldata publicSignals // isOver18, nullifierHash, + 6 public inputs
+        uint[9] calldata publicSignals
     ) external {
         VerificationRequest storage request = verificationRequests[requestId];
         
@@ -76,15 +76,20 @@ contract Over18Verifier {
         
         (uint256 userAadhaarHash, uint256 userSecretHash) = attesterContract.getHashes(msg.sender);
         
-        // Public signals order from circuit: [isOver18, nullifierHash, currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier]
+        // --- REVOCATION CHECK ---
+        // Before verifying the proof, check if the credential's secret is revoked.
+        require(!attesterContract.isSecretHashRevoked(userSecretHash), "Credential has been revoked");
+
+        // Public signals order: [isOver18, nullifierHash, currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier, verifierIdentifier]
         require(publicSignals[5] == userAadhaarHash, "Aadhaar hash mismatch");
         require(publicSignals[6] == userSecretHash, "Secret hash mismatch");
         require(publicSignals[7] == requestId, "Request ID mismatch");
+        require(publicSignals[8] == uint256(uint160(request.requester)), "Verifier ID mismatch");
         
         bool proofValid = groth16Verifier.verifyProof(pA, pB, pC, publicSignals);
         require(proofValid, "Invalid ZK proof");
         
-        usedNullifiers[nullifierHash] = true; // Mark nullifier as used
+        usedNullifiers[nullifierHash] = true;
         request.isCompleted = true;
         request.result = (publicSignals[0] == 1);
         
@@ -146,12 +151,10 @@ contract Over18Verifier {
     }
     
     function setVerificationFee(uint256 newFee) external {
-        // In production, add proper access control (e.g., Ownable)
         verificationFee = newFee;
     }
     
     function withdrawFees() external {
-        // In production, add proper access control (e.g., Ownable)
         payable(msg.sender).transfer(address(this).balance);
     }
 }

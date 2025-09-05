@@ -51,7 +51,7 @@ class ProofGenerator {
         };
     }
 
-    async generateOver18Proof(aadhaarData, secret, requestIdentifier) {
+    async generateOver18Proof(aadhaarData, secret, requestIdentifier, verifierIdentifier) {
         try {
             const { aadhaarNumber, birthYear, birthMonth, birthDay, salt } = aadhaarData;
             const currentDate = this.getCurrentDate();
@@ -73,14 +73,15 @@ class ProofGenerator {
                 currentDay: BigInt(currentDate.currentDay),
                 aadhaarHash: BigInt(aadhaarHash),
                 secretHash: BigInt(secretHash),
-                requestIdentifier: BigInt(requestIdentifier)
+                requestIdentifier: BigInt(requestIdentifier),
+                verifierIdentifier: BigInt(verifierIdentifier)
             };
 
             console.log("Circuit input:", circuitInput);
 
             const tmpDir = path.join(__dirname, "../tmp");
             if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
-            const witnessPath = path.join(tmpDir, `witness_${aadhaarNumber}_${requestIdentifier}.wtns`);
+            const witnessPath = path.join(tmpDir, `witness_${aadhaarNumber}_${requestIdentifier}_${verifierIdentifier}.wtns`);
 
             await snarkjs.wtns.calculate(circuitInput, this.wasmPath, witnessPath);
             const { proof, publicSignals } = await snarkjs.groth16.prove(this.zkeyPath, witnessPath);

@@ -29,7 +29,8 @@ async function completeVerifications() {
         const aliceProofResult = await proofGenerator.generateOver18Proof(
             userData.alice,
             userData.alice.secret,
-            requestData.alice.requestId
+            requestData.alice.requestId,
+            requestData.alice.requester // This is the verifier's address
         );
         
         if (!aliceProofResult.success) throw new Error(`Alice proof generation failed: ${aliceProofResult.error}`);
@@ -53,7 +54,8 @@ async function completeVerifications() {
         const bobProofResult = await proofGenerator.generateOver18Proof(
             userData.bob,
             userData.bob.secret,
-            requestData.bob.requestId
+            requestData.bob.requestId,
+            requestData.bob.requester // This is the verifier's address
         );
 
         if (!bobProofResult.success) throw new Error(`Bob proof generation failed: ${bobProofResult.error}`);

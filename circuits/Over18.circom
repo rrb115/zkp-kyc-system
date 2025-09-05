@@ -19,6 +19,7 @@ template Over18() {
     signal input aadhaarHash;
     signal input secretHash;
     signal input requestIdentifier; // e.g., the requestId from the contract
+    signal input verifierIdentifier; // The address of the company/verifier
 
     // Outputs
     signal output isOver18;
@@ -39,10 +40,11 @@ template Over18() {
     secretHasher.out === secretHash;
 
     // --- NULLIFIER GENERATION ---
-    // The nullifier is unique for this user and this specific request
-    component nullifierHasher = Poseidon(2);
+    // The nullifier is now unique for this user, this request, AND this verifier
+    component nullifierHasher = Poseidon(3);
     nullifierHasher.inputs[0] <== secret;
     nullifierHasher.inputs[1] <== requestIdentifier;
+    nullifierHasher.inputs[2] <== verifierIdentifier;
     nullifierHash <== nullifierHasher.out;
 
     // --- ACCURATE AGE VERIFICATION LOGIC ---
@@ -92,4 +94,4 @@ template Over18() {
     isOver18 * (1 - isOver18) === 0;
 }
 
-component main { public [currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier] } = Over18();
+component main { public [currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier, verifierIdentifier] } = Over18();

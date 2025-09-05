@@ -6,37 +6,27 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract AttesterContract is Ownable {
     
     struct AadhaarCard {
-        uint256 aadhaarHash;        // Poseidon hash of Aadhaar data
-        uint256 secretHash;         // Poseidon hash of the user's secret for nullifiers
-        uint256 issueTimestamp;     // When card was issued
-        bool isActive;              // Whether card is still valid
-        string cardId;              // Unique card identifier
+        uint256 aadhaarHash;
+        uint256 secretHash;
+        uint256 issueTimestamp;
+        bool isActive;
+        string cardId;
     }
     
-    // Mapping from user address to their Aadhaar card
     mapping(address => AadhaarCard) public aadhaarCards;
-    
-    // Mapping from card ID to user address
     mapping(string => address) public cardToUser;
-    
-    // Events
+    mapping(uint256 => bool) public isSecretHashRevoked; // Revocation list
+
     event AadhaarCardIssued(
         address indexed user, 
         string cardId, 
         uint256 aadhaarHash
     );
     
-    event AadhaarCardRevoked(address indexed user, string cardId);
+    event AadhaarCardRevoked(address indexed user, string cardId, uint256 secretHash);
     
     constructor() Ownable() {}
     
-    /**
-     * @dev Issues a new Aadhaar card to a user
-     * @param user The user's wallet address
-     * @param cardId Unique identifier for the card
-     * @param aadhaarHash Poseidon hash of Aadhaar data + salt
-     * @param secretHash Poseidon hash of the user's secret
-     */
     function issueAadhaarCard(
         address user,
         string memory cardId,
@@ -62,45 +52,29 @@ contract AttesterContract is Ownable {
         emit AadhaarCardIssued(user, cardId, aadhaarHash);
     }
     
-    /**
-     * @dev Revokes an Aadhaar card
-     * @param user The user whose card to revoke
-     */
     function revokeAadhaarCard(address user) external onlyOwner {
         require(aadhaarCards[user].isActive, "User has no active card");
         
-        string memory cardId = aadhaarCards[user].cardId;
-        aadhaarCards[user].isActive = false;
+        AadhaarCard storage card = aadhaarCards[user];
+        string memory cardId = card.cardId;
+        uint256 secretHashToRevoke = card.secretHash;
+
+        card.isActive = false;
+        isSecretHashRevoked[secretHashToRevoke] = true; // Add to revocation list
         delete cardToUser[cardId];
         
-        emit AadhaarCardRevoked(user, cardId);
+        emit AadhaarCardRevoked(user, cardId, secretHashToRevoke);
     }
     
-    /**
-     * @dev Gets user's hashes for verification
-     * @param user The user's address
-     * @return aadhaarHash_ The Aadhaar hash
-     * @return secretHash_ The secret hash
-     */
     function getHashes(address user) external view returns (uint256 aadhaarHash_, uint256 secretHash_) {
         require(aadhaarCards[user].isActive, "User has no active Aadhaar card");
         return (aadhaarCards[user].aadhaarHash, aadhaarCards[user].secretHash);
     }
     
-    /**
-     * @dev Checks if user has valid Aadhaar card
-     * @param user The user's address
-     * @return Whether user has valid card
-     */
     function hasValidCard(address user) external view returns (bool) {
         return aadhaarCards[user].isActive;
     }
     
-    /**
-     * @dev Gets card details for a user
-     * @param user The user's address
-     * @return AadhaarCard struct
-     */
     function getCardDetails(address user) external view returns (AadhaarCard memory) {
         require(aadhaarCards[user].isActive, "User has no active card");
         return aadhaarCards[user];
