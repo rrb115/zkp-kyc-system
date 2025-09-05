@@ -1,48 +1,48 @@
-node_modules
+# Node modules and logs
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
 .env
+.env.* 
+.secrets
+*.key
+*.pem
 
-# Hardhat files
-/cache
-/artifacts
+# Hardhat / build artifacts
+artifacts/
+cache/
+typechain/
+coverage/
 
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
-deployments.json
-package-lock.json
-requestData.json
-userData.json
-circuits/build/Over18_0000.zkey
-circuits/build/Over18_0001.zkey
-circuits/build/Over18_final.zkey
-circuits/build/Over18.r1cs
-circuits/build/Over18.sym
-circuits/build/Over18_js/generate_witness.js
-circuits/build/Over18_js/Over18.wasm
-circuits/build/Over18_js/witness_calculator.js
+# Contracts / generated verifiers
 contracts/Groth16Verifier.sol
-contracts/Lock.sol
-ignition/modules/Lock.js
-test/Lock.js
-tmp/witness_148632868130.wtns
-tmp/witness_150559911345.wtns
-tmp/witness_159190463923.wtns
-tmp/witness_178510196538.wtns
-tmp/witness_198970848355.wtns
-tmp/witness_404867000585.wtns
-tmp/witness_520424700669.wtns
-tmp/witness_548907898375.wtns
-tmp/witness_555663318372.wtns
-tmp/witness_587717257148.wtns
-tmp/witness_592393349056.wtns
-tmp/witness_757211399859.wtns
-tmp/witness_797242161963.wtns
-tmp/witness_897506495540.wtns
-tmp/witness_954702455286.wtns
+
+# Circom/snarkjs outputs (compiled circuits, wasm, zkey, ptau, witnesses, verification keys)
+circuits/build/
+circuits/*.r1cs
+circuits/*.sym
+circuits/*.ptau
+circuits/**/*.wasm
+circuits/**/*.wtns
+circuits/**/Over18_js/
+circuits/**/Over18.wasm
+circuits/**/Over18.r1cs
+circuits/**/Over18_final.zkey
+circuits/**/verification_key.json
+
+# Temporary files used by scripts
+tmp/
+tmp/**
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Distribution / generated bundles
+dist/
+build/

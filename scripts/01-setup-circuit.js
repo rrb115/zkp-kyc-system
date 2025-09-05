@@ -29,9 +29,17 @@ async function setupCircuit() {
         const ptauPath = path.join(buildDir, 'powersOfTau28_hez_final_12.ptau');
         
         if (!fs.existsSync(ptauPath)) {
-            console.log('📥 Downloading powers of tau file...');
-            await execAsync(`curl -o ${ptauPath} https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_12.ptau`);
+            console.log('📥 Downloading powers of tau file (phase 1)...');
+            
+            // Use the new, reliable URL
+            const ptauURL = "https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_12.ptau";
+            
+            // Use curl with -L to follow redirects
+            await execAsync(`curl -L -o ${ptauPath} ${ptauURL}`);
+            
             console.log('✅ Powers of tau downloaded');
+        } else {
+            console.log('✅ Powers of tau file already exists. Skipping download.');
         }
 
         // Setup ceremony

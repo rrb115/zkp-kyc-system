@@ -7,6 +7,7 @@ contract AttesterContract is Ownable {
     
     struct AadhaarCard {
         uint256 aadhaarHash;        // Poseidon hash of Aadhaar data
+        uint256 secretHash;         // Poseidon hash of the user's secret for nullifiers
         uint256 issueTimestamp;     // When card was issued
         bool isActive;              // Whether card is still valid
         string cardId;              // Unique card identifier
@@ -34,19 +35,23 @@ contract AttesterContract is Ownable {
      * @param user The user's wallet address
      * @param cardId Unique identifier for the card
      * @param aadhaarHash Poseidon hash of Aadhaar data + salt
+     * @param secretHash Poseidon hash of the user's secret
      */
     function issueAadhaarCard(
         address user,
         string memory cardId,
-        uint256 aadhaarHash
+        uint256 aadhaarHash,
+        uint256 secretHash
     ) external onlyOwner {
         require(bytes(cardId).length > 0, "Card ID cannot be empty");
         require(aadhaarHash != 0, "Invalid Aadhaar hash");
+        require(secretHash != 0, "Invalid secret hash");
         require(!aadhaarCards[user].isActive, "User already has active card");
         require(cardToUser[cardId] == address(0), "Card ID already exists");
         
         aadhaarCards[user] = AadhaarCard({
             aadhaarHash: aadhaarHash,
+            secretHash: secretHash,
             issueTimestamp: block.timestamp,
             isActive: true,
             cardId: cardId
@@ -72,13 +77,14 @@ contract AttesterContract is Ownable {
     }
     
     /**
-     * @dev Gets user's Aadhaar hash for verification
+     * @dev Gets user's hashes for verification
      * @param user The user's address
-     * @return The Aadhaar hash
+     * @return aadhaarHash_ The Aadhaar hash
+     * @return secretHash_ The secret hash
      */
-    function getAadhaarHash(address user) external view returns (uint256) {
+    function getHashes(address user) external view returns (uint256 aadhaarHash_, uint256 secretHash_) {
         require(aadhaarCards[user].isActive, "User has no active Aadhaar card");
-        return aadhaarCards[user].aadhaarHash;
+        return (aadhaarCards[user].aadhaarHash, aadhaarCards[user].secretHash);
     }
     
     /**
@@ -99,5 +105,4 @@ contract AttesterContract is Ownable {
         require(aadhaarCards[user].isActive, "User has no active card");
         return aadhaarCards[user];
     }
-    
 }

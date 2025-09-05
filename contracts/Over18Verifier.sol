@@ -2,55 +2,39 @@
 pragma solidity ^0.8.19;
 
 import "./AttesterContract.sol";
+import "./Groth16Verifier.sol";
 
 contract Over18Verifier {
     
     struct VerificationRequest {
-        address requester;          // Company requesting verification
-        address user;               // User being verified
-        uint256 requestTimestamp;   // When request was made
-        bool isCompleted;           // Whether verification is complete
-        bool result;                // Verification result (if completed)
-        uint256 fee;                // Fee paid by requester
+        address requester;
+        address user;
+        uint256 requestTimestamp;
+        bool isCompleted;
+        bool result;
+        uint256 fee;
     }
     
     AttesterContract public immutable attesterContract;
+    Groth16Verifier public immutable groth16Verifier;
     
     mapping(uint256 => VerificationRequest) public verificationRequests;
-    mapping(address => uint256[]) public userRequests; // Requests for each user
-    mapping(address => uint256[]) public requesterRequests; // Requests by each company
+    mapping(address => uint256[]) public userRequests;
+    mapping(address => uint256[]) public requesterRequests;
+    mapping(uint256 => bool) public usedNullifiers; // Mapping to store used nullifiers
     
     uint256 public nextRequestId = 1;
-    uint256 public verificationFee = 0.001 ether; // Fee for verification
+    uint256 public verificationFee = 0.001 ether;
     
-    // Events
-    event VerificationRequested(
-        uint256 indexed requestId,
-        address indexed requester,
-        address indexed user,
-        uint256 fee
-    );
+    event VerificationRequested(uint256 indexed requestId, address indexed requester, address indexed user, uint256 fee);
+    event VerificationCompleted(uint256 indexed requestId, address indexed user, bool result);
+    event VerificationRejected(uint256 indexed requestId, address indexed user);
     
-    event VerificationCompleted(
-        uint256 indexed requestId,
-        address indexed user,
-        bool result
-    );
-    
-    event VerificationRejected(
-        uint256 indexed requestId,
-        address indexed user
-    );
-    
-    constructor(address _attesterContract) {
+    constructor(address _attesterContract, address _groth16Verifier) {
         attesterContract = AttesterContract(_attesterContract);
+        groth16Verifier = Groth16Verifier(_groth16Verifier);
     }
     
-    /**
-     * @dev Company requests age verification for a user
-     * @param user The user to verify
-     * @return requestId The ID of the verification request
-     */
     function requestVerification(address user) external payable returns (uint256) {
         require(msg.value >= verificationFee, "Insufficient fee");
         require(attesterContract.hasValidCard(user), "User has no valid Aadhaar card");
@@ -74,82 +58,58 @@ contract Over18Verifier {
         return requestId;
     }
     
-    
     function completeVerification(
         uint256 requestId,
         uint[2] calldata pA,
         uint[2][2] calldata pB,
         uint[2] calldata pC,
-        uint[4] calldata publicSignals
+        uint[8] calldata publicSignals // isOver18, nullifierHash, + 6 public inputs
     ) external {
         VerificationRequest storage request = verificationRequests[requestId];
         
-        require(request.user == msg.sender, "Only requested user can complete verification");
-        require(!request.isCompleted, "Verification already completed");
-        require(block.timestamp <= request.requestTimestamp + 1 days, "Verification request expired");
+        require(request.user == msg.sender, "Only user can complete");
+        require(!request.isCompleted, "Already completed");
+        require(block.timestamp <= request.requestTimestamp + 1 days, "Expired");
+
+        uint256 nullifierHash = publicSignals[1];
+        require(!usedNullifiers[nullifierHash], "Proof has already been used");
         
-        // Get user's Aadhaar hash for verification
-        uint256 userAadhaarHash = attesterContract.getAadhaarHash(msg.sender);
+        (uint256 userAadhaarHash, uint256 userSecretHash) = attesterContract.getHashes(msg.sender);
         
-        // Verify the public signals match expected values
-        require(publicSignals[3] == userAadhaarHash, "Aadhaar hash mismatch");
+        // Public signals order from circuit: [isOver18, nullifierHash, currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier]
+        require(publicSignals[5] == userAadhaarHash, "Aadhaar hash mismatch");
+        require(publicSignals[6] == userSecretHash, "Secret hash mismatch");
+        require(publicSignals[7] == requestId, "Request ID mismatch");
         
-        // Verify the ZK proof
-        bool proofValid = verifyProof(pA, pB, pC, publicSignals);
+        bool proofValid = groth16Verifier.verifyProof(pA, pB, pC, publicSignals);
         require(proofValid, "Invalid ZK proof");
         
-        // Complete the verification
+        usedNullifiers[nullifierHash] = true; // Mark nullifier as used
         request.isCompleted = true;
-        request.result = (publicSignals[0] == 1); // isOver18 result
+        request.result = (publicSignals[0] == 1);
         
         emit VerificationCompleted(requestId, msg.sender, request.result);
         
-        // Pay user a portion of the fee as incentive
-        uint256 userReward = request.fee / 10; // 10% to user
-        payable(msg.sender).transfer(userReward);
+        uint256 userReward = request.fee / 10;
+        if (userReward > 0) {
+            payable(msg.sender).transfer(userReward);
+        }
     }
     
-    /**
-     * @dev User rejects verification request
-     * @param requestId The verification request ID
-     */
     function rejectVerification(uint256 requestId) external {
         VerificationRequest storage request = verificationRequests[requestId];
         
-        require(request.user == msg.sender, "Only requested user can reject verification");
-        require(!request.isCompleted, "Verification already completed");
+        require(request.user == msg.sender, "Only user can reject");
+        require(!request.isCompleted, "Already completed");
         
         request.isCompleted = true;
         request.result = false;
         
         emit VerificationRejected(requestId, msg.sender);
         
-        // Refund the requester
         payable(request.requester).transfer(request.fee);
     }
     
-    /**
-     * @dev Verify Groth16 proof (simplified for demo)
-     * In production, this would use the actual verifier contract generated by circom
-     */
-    function verifyProof(
-        uint[2] calldata pA,
-        uint[2][2] calldata pB,
-        uint[2] calldata pC,
-        uint[4] calldata publicSignals
-    ) internal pure returns (bool) {
-        // This is a simplified verification for demo purposes
-        // In production, you would deploy the actual verifier contract
-        // generated by circom and call it here
-        return true; // Assume proof is valid for demo
-    }
-    
-    /**
-     * @dev Get verification result
-     * @param requestId The verification request ID
-     * @return isCompleted Whether verification is complete
-     * @return result The verification result
-     */
     function getVerificationResult(uint256 requestId) 
         external 
         view 
@@ -158,21 +118,14 @@ contract Over18Verifier {
         VerificationRequest memory request = verificationRequests[requestId];
         require(
             request.requester == msg.sender || request.user == msg.sender,
-            "Not authorized to view this verification"
+            "Not authorized"
         );
         
         return (request.isCompleted, request.result);
     }
     
-    /**
-     * @dev Get pending verification requests for user
-     * @param user The user's address
-     * @return Array of pending request IDs
-     */
     function getPendingRequests(address user) external view returns (uint256[] memory) {
         uint256[] memory allRequests = userRequests[user];
-        
-        // Count pending requests
         uint256 pendingCount = 0;
         for (uint256 i = 0; i < allRequests.length; i++) {
             if (!verificationRequests[allRequests[i]].isCompleted) {
@@ -180,7 +133,6 @@ contract Over18Verifier {
             }
         }
         
-        // Create array of pending requests
         uint256[] memory pendingRequests = new uint256[](pendingCount);
         uint256 index = 0;
         for (uint256 i = 0; i < allRequests.length; i++) {
@@ -193,19 +145,13 @@ contract Over18Verifier {
         return pendingRequests;
     }
     
-    /**
-     * @dev Update verification fee (only owner)
-     */
     function setVerificationFee(uint256 newFee) external {
-        // In production, add proper access control
+        // In production, add proper access control (e.g., Ownable)
         verificationFee = newFee;
     }
     
-    /**
-     * @dev Withdraw accumulated fees
-     */
     function withdrawFees() external {
-        // In production, add proper access control
+        // In production, add proper access control (e.g., Ownable)
         payable(msg.sender).transfer(address(this).balance);
     }
 }

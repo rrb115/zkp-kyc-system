@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
-include "circomlib/circuits/poseidon.circom";
-include "circomlib/circuits/comparators.circom";
+include "poseidon.circom";
+include "comparators.circom";
 
 template Over18() {
     // Private inputs
@@ -10,29 +10,42 @@ template Over18() {
     signal input birthMonth;
     signal input birthDay;
     signal input salt;
+    signal input secret;
 
     // Public inputs
     signal input currentYear;
     signal input currentMonth;
     signal input currentDay;
     signal input aadhaarHash;
+    signal input secretHash;
+    signal input requestIdentifier; // e.g., the requestId from the contract
 
     // Outputs
     signal output isOver18;
+    signal output nullifierHash;
 
     // --- HASH VERIFICATION ---
-    component hasher = Poseidon(5);
-    hasher.inputs[0] <== aadhaarNumber;
-    hasher.inputs[1] <== birthYear;
-    hasher.inputs[2] <== birthMonth;
-    hasher.inputs[3] <== birthDay;
-    hasher.inputs[4] <== salt;
-    hasher.out === aadhaarHash;
+    component dataHasher = Poseidon(5);
+    dataHasher.inputs[0] <== aadhaarNumber;
+    dataHasher.inputs[1] <== birthYear;
+    dataHasher.inputs[2] <== birthMonth;
+    dataHasher.inputs[3] <== birthDay;
+    dataHasher.inputs[4] <== salt;
+    dataHasher.out === aadhaarHash;
 
-    // --- AGE VERIFICATION LOGIC ---
-    // We want to check if:
-    // currentDate >= (birthDate + 18 years)
+    // --- SECRET HASH VERIFICATION ---
+    component secretHasher = Poseidon(1);
+    secretHasher.inputs[0] <== secret;
+    secretHasher.out === secretHash;
 
+    // --- NULLIFIER GENERATION ---
+    // The nullifier is unique for this user and this specific request
+    component nullifierHasher = Poseidon(2);
+    nullifierHasher.inputs[0] <== secret;
+    nullifierHasher.inputs[1] <== requestIdentifier;
+    nullifierHash <== nullifierHasher.out;
+
+    // --- ACCURATE AGE VERIFICATION LOGIC ---
     signal targetYear <== birthYear + 18;
 
     // Components for comparison
@@ -66,12 +79,12 @@ template Over18() {
     dayGreaterEq.in[0] <== currentDay;
     dayGreaterEq.in[1] <== birthDay;
     signal isDayGreaterEq <== dayGreaterEq.out;
-    signal yearEqAndMonthEqAndDayGe <== isYearEqual * isMonthEqual * isDayGreaterEq;
 
-    // isOver18 is true if any of the above conditions are met
-    // (isYearGreater) OR (yearEqAndMonthGreater) OR (yearEqAndMonthEqAndDayGe)
-    // Since these are mutually exclusive, we can sum them.
-    // The result will be 1 if one is true, 0 otherwise.
+    // Break down cubic constraint into two quadratic constraints
+    signal yearEqAndMonthEq <== isYearEqual * isMonthEqual;
+    signal yearEqAndMonthEqAndDayGe <== yearEqAndMonthEq * isDayGreaterEq;
+
+    // isOver18 is true if any of the conditions are met
     signal sum <== isYearGreater + yearEqAndMonthGreater + yearEqAndMonthEqAndDayGe;
     isOver18 <== sum;
 
@@ -79,4 +92,4 @@ template Over18() {
     isOver18 * (1 - isOver18) === 0;
 }
 
-component main { public [currentYear, currentMonth, currentDay, aadhaarHash] } = Over18();
+component main { public [currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier] } = Over18();
