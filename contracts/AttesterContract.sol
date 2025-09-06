@@ -8,6 +8,7 @@ contract AttesterContract is Ownable {
     struct AadhaarCard {
         uint256 aadhaarHash;
         uint256 secretHash;
+        uint256 stateCommitment; // Hash(userState, stateSalt)
         uint256 issueTimestamp;
         bool isActive;
         string cardId;
@@ -15,7 +16,7 @@ contract AttesterContract is Ownable {
     
     mapping(address => AadhaarCard) public aadhaarCards;
     mapping(string => address) public cardToUser;
-    mapping(uint256 => bool) public isSecretHashRevoked; // Revocation list
+    mapping(uint256 => bool) public isSecretHashRevoked;
 
     event AadhaarCardIssued(
         address indexed user, 
@@ -31,17 +32,20 @@ contract AttesterContract is Ownable {
         address user,
         string memory cardId,
         uint256 aadhaarHash,
-        uint256 secretHash
+        uint256 secretHash,
+        uint256 stateCommitment
     ) external onlyOwner {
         require(bytes(cardId).length > 0, "Card ID cannot be empty");
         require(aadhaarHash != 0, "Invalid Aadhaar hash");
         require(secretHash != 0, "Invalid secret hash");
+        require(stateCommitment != 0, "Invalid state commitment");
         require(!aadhaarCards[user].isActive, "User already has active card");
         require(cardToUser[cardId] == address(0), "Card ID already exists");
         
         aadhaarCards[user] = AadhaarCard({
             aadhaarHash: aadhaarHash,
             secretHash: secretHash,
+            stateCommitment: stateCommitment,
             issueTimestamp: block.timestamp,
             isActive: true,
             cardId: cardId
@@ -60,15 +64,23 @@ contract AttesterContract is Ownable {
         uint256 secretHashToRevoke = card.secretHash;
 
         card.isActive = false;
-        isSecretHashRevoked[secretHashToRevoke] = true; // Add to revocation list
+        isSecretHashRevoked[secretHashToRevoke] = true;
         delete cardToUser[cardId];
         
         emit AadhaarCardRevoked(user, cardId, secretHashToRevoke);
     }
     
-    function getHashes(address user) external view returns (uint256 aadhaarHash_, uint256 secretHash_) {
+    /**
+     * @dev A single, unified getter for all public commitments.
+     */
+    function getPublicCommitments(address user) external view returns (
+        uint256 aadhaarHash_,
+        uint256 secretHash_,
+        uint256 stateCommitment_
+    ) {
         require(aadhaarCards[user].isActive, "User has no active Aadhaar card");
-        return (aadhaarCards[user].aadhaarHash, aadhaarCards[user].secretHash);
+        AadhaarCard storage card = aadhaarCards[user];
+        return (card.aadhaarHash, card.secretHash, card.stateCommitment);
     }
     
     function hasValidCard(address user) external view returns (bool) {

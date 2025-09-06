@@ -4,98 +4,52 @@ const Utils = require("../src/utils");
 const fs = require("fs");
 const path = require("path");
 
+// Simple mapping for demo purposes. In reality, these would be official codes.
+const stateMapping = { "Maharashtra": 27, "Karnataka": 29, "Delhi": 7 };
+
 async function issueAadhaarCards() {
-    console.log("🏛️  Aadhaar Organization: Issuing Aadhaar Cards with Secrets\n");
+    console.log("🏛️  Aadhaar Org: Issuing credentials with age and state data\n");
+    const deployments = JSON.parse(fs.readFileSync(path.join(__dirname, '../deployments.json'), 'utf-8'));
+    const [aadhaarOrg, alice, bob, company] = await ethers.getSigners();
+    const { attesterContract } = await Utils.getContracts(deployments);
+    const proofGenerator = new ProofGenerator();
+    await proofGenerator.init();
 
-    try {
-        const deploymentsPath = path.join(__dirname, '../deployments.json');
-        const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf-8'));
+    // --- Alice (Over 18, Maharashtra) ---
+    const aliceData = Utils.generateMockAadhaarData("Alice", true);
+    aliceData.userState = stateMapping["Maharashtra"];
+    aliceData.stateSalt = proofGenerator.generateSalt();
+    const aliceSalt = proofGenerator.generateSalt();
+    const aliceSecret = proofGenerator.generateSecret();
+    const aliceAadhaarHash = proofGenerator.generateAadhaarHash(aliceData.aadhaarNumber, aliceData.birthYear, aliceData.birthMonth, aliceData.birthDay, aliceSalt);
+    const aliceSecretHash = proofGenerator.generateSecretHash(aliceSecret);
+    const aliceStateCommitment = proofGenerator.generateStateCommitment(aliceData.userState, aliceData.stateSalt);
 
-        const [aadhaarOrg, alice, bob, company] = await ethers.getSigners();
-        
-        const { attesterContract } = await Utils.getContracts(
-            deployments.attesterContract,
-            deployments.over18Verifier
-        );
+    await attesterContract.issueAadhaarCard(alice.address, `AADHAAR_${aliceData.aadhaarNumber}`, aliceAadhaarHash, aliceSecretHash, aliceStateCommitment);
+    console.log(`✅ Issued card for Alice (State: Maharashtra)`);
 
-        const proofGenerator = new ProofGenerator();
-        await proofGenerator.init();
-        
-        // --- Alice (over 18) ---
-        console.log("\n📋 Generating data for Alice (over 18)...");
-        const aliceData = Utils.generateMockAadhaarData("Alice", true);
-        const aliceSalt = proofGenerator.generateSalt();
-        const aliceSecret = proofGenerator.generateSecret();
-        const aliceAadhaarHash = proofGenerator.generateAadhaarHash(
-            aliceData.aadhaarNumber, aliceData.birthYear, aliceData.birthMonth, aliceData.birthDay, aliceSalt
-        );
-        const aliceSecretHash = proofGenerator.generateSecretHash(aliceSecret);
+    // --- Bob (Under 18, Karnataka) ---
+    const bobData = Utils.generateMockAadhaarData("Bob", false);
+    bobData.userState = stateMapping["Karnataka"];
+    bobData.stateSalt = proofGenerator.generateSalt();
+    const bobSalt = proofGenerator.generateSalt();
+    const bobSecret = proofGenerator.generateSecret();
+    const bobAadhaarHash = proofGenerator.generateAadhaarHash(bobData.aadhaarNumber, bobData.birthYear, bobData.birthMonth, bobData.birthDay, bobSalt);
+    const bobSecretHash = proofGenerator.generateSecretHash(bobSecret);
+    const bobStateCommitment = proofGenerator.generateStateCommitment(bobData.userState, bobData.stateSalt);
 
-        console.log("Alice's Data:");
-        console.log(`  - Hash: ${aliceAadhaarHash.toString()}`);
-        console.log(`  - Secret Hash: ${aliceSecretHash.toString()}`);
+    await attesterContract.issueAadhaarCard(bob.address, `AADHAAR_${bobData.aadhaarNumber}`, bobAadhaarHash, bobSecretHash, bobStateCommitment);
+    console.log(`✅ Issued card for Bob (State: Karnataka)`);
 
-        console.log("🎫 Issuing Aadhaar card for Alice...");
-        const aliceTx = await attesterContract.issueAadhaarCard(
-            alice.address,
-            `AADHAAR_${aliceData.aadhaarNumber}`,
-            aliceAadhaarHash.toString(),
-            aliceSecretHash.toString()
-        );
-        await Utils.waitForTransaction(aliceTx, "Alice's Aadhaar issuance");
-
-        // --- Bob (under 18) ---
-        console.log("\n📋 Generating data for Bob (under 18)...");
-        const bobData = Utils.generateMockAadhaarData("Bob", false);
-        const bobSalt = proofGenerator.generateSalt();
-        const bobSecret = proofGenerator.generateSecret();
-        const bobAadhaarHash = proofGenerator.generateAadhaarHash(
-            bobData.aadhaarNumber, bobData.birthYear, bobData.birthMonth, bobData.birthDay, bobSalt
-        );
-        const bobSecretHash = proofGenerator.generateSecretHash(bobSecret);
-
-        console.log("Bob's Data:");
-        console.log(`  - Hash: ${bobAadhaarHash.toString()}`);
-        console.log(`  - Secret Hash: ${bobSecretHash.toString()}`);
-
-        console.log("🎫 Issuing Aadhaar card for Bob...");
-        const bobTx = await attesterContract.issueAadhaarCard(
-            bob.address,
-            `AADHAAR_${bobData.aadhaarNumber}`,
-            bobAadhaarHash.toString(),
-            bobSecretHash.toString()
-        );
-        await Utils.waitForTransaction(bobTx, "Bob's Aadhaar issuance");
-
-        // Save user data for later use
-        const userData = {
-            alice: {
-                address: alice.address, ...aliceData,
-                salt: aliceSalt.toString(),
-                secret: aliceSecret.toString(),
-                hash: aliceAadhaarHash.toString(),
-                secretHash: aliceSecretHash.toString()
-            },
-            bob: {
-                address: bob.address, ...bobData,
-                salt: bobSalt.toString(),
-                secret: bobSecret.toString(),
-                hash: bobAadhaarHash.toString(),
-                secretHash: bobSecretHash.toString()
-            },
-            company: { address: company.address }
-        };
-
-        const userDataPath = path.join(__dirname, '../userData.json');
-        fs.writeFileSync(userDataPath, JSON.stringify(userData, null, 2));
-
-        console.log("\n📄 User data (including private secrets) saved to userData.json");
-        console.log("\n🎉 Aadhaar cards issued successfully!");
-
-    } catch (error) {
-        console.error("❌ Error issuing Aadhaar cards:", error);
-        process.exit(1);
-    }
+    // Save user data
+    const userData = {
+        alice: { address: alice.address, ...aliceData, salt: aliceSalt.toString(), secret: aliceSecret.toString() },
+        bob: { address: bob.address, ...bobData, salt: bobSalt.toString(), secret: bobSecret.toString() },
+        company: { address: company.address },
+        stateMapping
+    };
+    fs.writeFileSync(path.join(__dirname, '../userData.json'), JSON.stringify(userData, null, 2));
+    console.log("\n📄 User data saved to userData.json");
 }
 
 if (require.main === module) {

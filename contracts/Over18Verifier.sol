@@ -74,10 +74,9 @@ contract Over18Verifier {
         uint256 nullifierHash = publicSignals[1];
         require(!usedNullifiers[nullifierHash], "Proof has already been used");
         
-        (uint256 userAadhaarHash, uint256 userSecretHash) = attesterContract.getHashes(msg.sender);
+        // Call the new, correct function and ignore the last return value
+        (uint256 userAadhaarHash, uint256 userSecretHash, ) = attesterContract.getPublicCommitments(msg.sender);
         
-        // --- REVOCATION CHECK ---
-        // Before verifying the proof, check if the credential's secret is revoked.
         require(!attesterContract.isSecretHashRevoked(userSecretHash), "Credential has been revoked");
 
         // Public signals order: [isOver18, nullifierHash, currentYear, currentMonth, currentDay, aadhaarHash, secretHash, requestIdentifier, verifierIdentifier]
