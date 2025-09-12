@@ -1,108 +1,108 @@
-# zkP-KYC System (State of Residence Verifier)
+# zkP-KYC System — State of Residence Verifier
 
-This repository demonstrates a minimal zero-knowledge KYC-style flow that verifies a user's "state of residence" using a Circom circuit, snarkJS (Groth16), and a Solidity verifier + coordination contract deployed with Hardhat.
+A compact demonstration project that shows how to verify a user's "state of residence" using zero-knowledge proofs (Circom + snarkjs, Groth16) together with Solidity contracts (Hardhat). This README is written for a general audience — developers, auditors, or contributors who want to run, test, or extend the project.
 
-This README explains how to:
-- Install dependencies
-- Build circuits and generate keys / proofs
-- Compile and deploy Solidity contracts
-- Run tests and scripts
-- Overview of the technologies used and the repository layout
+Summary
+- Purpose: Prove on-chain that a user satisfies a "state of residence" predicate without revealing sensitive data.
+- Components:
+  - circuits/: Circom circuits and build artifacts for generating ZK proofs.
+  - contracts/: Solidity verifier and coordinator (requesting/fulfillment) contracts.
+  - scripts/: Hardhat scripts for deployment and interactions.
+  - test/: Unit and integration tests (Hardhat).
 
 Prerequisites
-- Node.js (>=16 recommended)
-- npm or yarn
-- npx available (comes with npm)
-- (Optional) Docker when you prefer containerized tooling
-- For compiling circuits: circom (v2) and snarkjs. You can install globally or use local npm packages.
+- Node.js (16+ recommended) and npm or yarn.
+- npx (comes with npm).
+- Optional but common: circom (v2) and snarkjs for local circuit compilation and proof generation. These can be installed globally or used via devDependencies.
+- Hardhat (installed as a project dependency) for compiling, testing, and deploying contracts.
 
-Quick setup
-1. Clone repository (already present for you).
-2. Install JS dependencies:
+Quick start (local)
+1. Install dependencies:
    npm install
    or
    yarn
 
-3. Install Circom + snarkjs (global or local):
-   - Global (recommended for convenience):
-     npm install -g circom
-     npm install -g snarkjs
-   - Or add as devDependencies to the project:
-     npm install --save-dev circom snarkjs
+2. (Optional) Install Circom and snarkjs globally for convenience:
+   npm install -g circom snarkjs
 
-Building & verifying contracts (Hardhat)
-- Compile Solidity:
-  npx hardhat compile
+3. Compile contracts:
+   npx hardhat compile
 
-- Run tests:
-  npx hardhat test
+4. Run local tests:
+   npx hardhat test
 
-- Start a local node:
-  npx hardhat node
+5. Run a local node (for manual interaction):
+   npx hardhat node
 
-- Deploy (if you have a deploy script under scripts/):
-  npx hardhat run --network localhost scripts/deploy.js
+6. Deploy to local network (example):
+   npx hardhat run --network localhost scripts/deploy.js
 
-Circuits: compile, setup, witness, prove, verifier export
-This project uses Circom circuits and snarkjs for Groth16 proofs. Typical workflow for a circuit:
+Circuits workflow (high-level)
+- Compile a circuit:
+  circom circuits/YourCircuit.circom --r1cs --wasm --sym -o circuits/build
 
-1. Compile the circuit (.circom -> .r1cs, .wasm, .sym):
-   circom circuits/YourCircuit.circom --r1cs --wasm --sym -o circuits/build
+- Trusted setup (dev quick flow):
+  snarkjs powersoftau new bn128 12 pot12_0000.ptau
+  snarkjs powersoftau contribute pot12_0000.ptau pot12_0001.ptau --name="contrib"
+  snarkjs groth16 setup circuits/build/YourCircuit.r1cs pot12_0001.ptau circuits/build/YourCircuit_0000.zkey
+  snarkjs zkey contribute circuits/build/YourCircuit_0000.zkey circuits/build/YourCircuit_final.zkey
+  snarkjs zkey export verificationkey circuits/build/YourCircuit_final.zkey circuits/build/verification_key.json
 
-2. Run a trusted setup (Groth16) or produce a powers-of-tau if needed:
-   # Example quick steps (dev only)
-   snarkjs groth16 setup circuits/build/YourCircuit.r1cs circuits/build/YourCircuit_0000.zkey
-   snarkjs zkey export verificationkey circuits/build/YourCircuit_0000.zkey circuits/build/verification_key.json
+- Witness, prove, verify:
+  node circuits/build/YourCircuit_js/generate_witness.js circuits/build/YourCircuit_js/YourCircuit.wasm input.json circuits/build/witness.wtns
+  snarkjs groth16 prove circuits/build/YourCircuit_final.zkey circuits/build/witness.wtns circuits/build/proof.json circuits/build/public.json
+  snarkjs groth16 verify circuits/build/verification_key.json circuits/build/public.json circuits/build/proof.json
 
-   For real usage you should generate a powers-of-tau first, then contribute randomness, etc:
-   snarkjs powersoftau new bn128 12 pot12_0000.ptau
-   snarkjs powersoftau contribute pot12_0000.ptau pot12_0001.ptau --name="first contribution" -v
+- Export on-chain verifier:
+  snarkjs zkey export solidityverifier circuits/build/YourCircuit_final.zkey contracts/YourCircuitVerifier.sol
 
-   snarkjs groth16 setup circuits/build/YourCircuit.r1cs pot12_0001.ptau circuits/build/YourCircuit_0000.zkey
-   snarkjs zkey contribute circuits/build/YourCircuit_0000.zkey circuits/build/YourCircuit_final.zkey --name="contrib" -v
-   snarkjs zkey export verificationkey circuits/build/YourCircuit_final.zkey circuits/build/verification_key.json
+Important notes about circuits and public signals
+- Keep publicSignals ordering consistent between the circuit and the on-chain verifier/coordination contract. Mismatched ordering is the most common cause of on-chain verification failures.
+- Use unique nullifiers to prevent replay of the same proof; the contract tracks used nullifiers.
+- Do not include secrets or private keys in proof artifacts stored in repositories.
 
-3. Generate witness (uses the wasm produced when compiling):
-   # Provide input.json according to circuit inputs
-   node circuits/build/YourCircuit_js/generate_witness.js circuits/build/YourCircuit_js/YourCircuit.wasm input.json circuits/build/witness.wtns
+Contracts overview
+- StateOfResidenceVerifier.sol
+  - Manages verification requests and stores state (requester, user, required state, timestamps, fees).
+  - Contacts an Attester-like contract to confirm the user has a valid attestation/commitment.
+  - Calls the on-chain Groth16 verifier contract to verify received proofs and public signals.
+  - Protects against reuse (nullifiers), refunds, and simple reward logic.
 
-4. Generate proof and public signals:
-   snarkjs groth16 prove circuits/build/YourCircuit_final.zkey circuits/build/witness.wtns circuits/build/proof.json circuits/build/public.json
-
-5. Verify proof locally:
-   snarkjs groth16 verify circuits/build/verification_key.json circuits/build/public.json circuits/build/proof.json
-
-6. Export Solidity verifier (to include in contracts):
-   snarkjs zkey export solidityverifier circuits/build/YourCircuit_final.zkey contracts/YourCircuitVerifier.sol
-
-Notes:
-- The repository already contains a generated Solidity verifier contract inside contracts/ (StateOfResidenceGroth16Verifier). If you replace circuits or re-generate keys, export the updated verifier and integrate it.
-- publicSignals ordering and semantics must match what your contract expects. In this project the contract expects specific indexes (e.g., nullifier hash, required state, requestId, requester address, state commitment, etc.)
-
-Contracts (contracts/)
-- StateOfResidenceVerifier.sol: Orchestrates requests for state verification, checks user has a valid attestation via an Attester contract, tracks requests, ensures nullifiers are not reused, calls the Groth16 verifier, rewards user with 10% of fee, refunds on rejection, etc.
-- StateOfResidenceGroth16Verifier: The on-chain Groth16 verifier (generated by snarkjs). It verifies the submitted proof and public signals.
+- StateOfResidenceGroth16Verifier (generated by snarkjs)
+  - Standard Groth16 Solidity verifier used by the coordinator contract.
 
 Common Hardhat commands
 - Compile: npx hardhat compile
 - Test: npx hardhat test
-- Run a script: npx hardhat run scripts/<script>.js --network <network>
+- Run script: npx hardhat run scripts/<script>.js --network <network>
 - Local node: npx hardhat node
+- Deploy to a target network: npx hardhat run --network <network> scripts/deploy.js
 
-Scripts (scripts/)
-- Typical scripts included in this repo may:
-  - deploy contracts
-  - interact with contract functions for requesting or completing verification
-  - helper scripts to fund accounts or simulate Attester contract behavior
-- To run deploy:
-  npx hardhat run --network localhost scripts/deploy.js
+Security and deployment considerations
+- For production use, do not use the simple dev trusted-setup flow. Use a proper multiparty ceremony (powers-of-tau + multiple zkey contributions) and keep zkey provenance.
+- Do not publish private keys or unencrypted RPC credentials. Use environment variables or secret managers for deployments.
+- Verify on-chain verifier code matches the zkey used to generate proofs.
+- Gas: Verifying Groth16 proofs on-chain is expensive; evaluate gas costs for your target chain.
 
-Environment and configuration
-- Networks and private keys are defined in hardhat.config.js (not shown here). For local testing use the built-in Hardhat network.
-- When deploying to public testnets/mainnet, set RPC URLs and private keys via environment variables. Never commit private keys.
+Repository layout (brief)
+- circuits/   : Source circuits (.circom), inputs, and build output (wasm, r1cs, zkey, proof artifacts).
+- contracts/  : Solidity contracts (verifier and coordinator).
+- scripts/    : Scripts for deployment and helper actions.
+- test/       : Tests for contracts and flows.
+- artifacts/  : Hardhat build artifacts (populated after compile).
 
-How to use the StateOfResidenceVerifier contract (high-level)
-1. Requester calls requestStateVerification(userAddress, requiredState) and pays the required fee (stateVerificationFee).
+Troubleshooting (common issues)
+- "Invalid ZK proof" on-chain: Confirm verifier matches the zkey that generated proofs and public signal order is correct.
+- "Proof has already been used": The public nullifier value was already registered as used; ensure unique nullifiers.
+- circom/snarkjs errors: Check local versions; prefer circom v2 and a compatible snarkjs version.
+
+Resources
+- Circom docs: https://docs.circom.io/
+- snarkjs: https://github.com/iden3/snarkjs
+- Hardhat: https://hardhat.org/
+- Ethers.js: https://docs.ethers.io/
+
+If you want a tailored step-by-step example (full circuit, inputs, witness generation, proof, contract deploy, and a sample transaction that completes a verification end-to-end), indicate whether you prefer a local-only walkthrough or one that targets a public testnet and which proof parameters you want to use.
 2. The contract checks the Attester contract to ensure the user has a valid card and stores the request.
 3. User generates a ZK proof off-chain that proves:
    - their state commitment matches a committed state

@@ -2,6 +2,34 @@ const { ethers } = require("hardhat");
 
 class Utils {
     /**
+     * Deploy all contracts for testing/demo purposes.
+     * @returns {object} An object containing the deployed contract instances.
+     */
+    static async deployContracts() {
+        console.log("🚀 Deploying contracts for testing...");
+        
+        // Deploy AttesterContract
+        const AttesterContract = await ethers.getContractFactory("AttesterContract");
+        const attesterContract = await AttesterContract.deploy();
+        await attesterContract.waitForDeployment();
+        
+        // Deploy Over18 Groth16 Verifier
+        const Over18Groth16 = await ethers.getContractFactory("Groth16Verifier");
+        const over18Groth16 = await Over18Groth16.deploy();
+        await over18Groth16.waitForDeployment();
+        
+        // Deploy Over18 Verifier
+        const Over18Verifier = await ethers.getContractFactory("Over18Verifier");
+        const over18Verifier = await Over18Verifier.deploy(
+            await attesterContract.getAddress(),
+            await over18Groth16.getAddress()
+        );
+        await over18Verifier.waitForDeployment();
+        
+        return { attesterContract, over18Verifier };
+    }
+
+    /**
      * Get contract instances from deployment addresses.
      * This function is designed to be flexible and will attach to whichever
      * contract addresses are provided in the deployments object.
