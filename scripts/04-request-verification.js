@@ -17,10 +17,7 @@ async function requestVerifications() {
         const [aadhaarOrg, alice, bob, company] = await ethers.getSigners();
         
         // Get BOTH contract instances
-        const { attesterContract, over18Verifier } = await Utils.getContracts(
-            deployments.attesterContract,
-            deployments.over18Verifier
-        );
+        const { attesterContract, over18Verifier } = await Utils.getContracts(deployments);
 
         // --- Prerequisite Checks ---
         console.log("🕵️  Verifying prerequisites...");

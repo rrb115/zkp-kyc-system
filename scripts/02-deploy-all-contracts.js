@@ -32,12 +32,11 @@ async function deployAllContracts() {
 
         // --- Deploy StateOfResidence System ---
         console.log("\n✅ Deploying StateOfResidence System...");
-        const StateGroth16 = await ethers.getContractFactory("StateOfResidenceGroth16Verifier");
-        const stateGroth16 = await StateGroth16.deploy();
+        const StateOfResidenceGroth16Verifier = await ethers.getContractFactory("StateOfResidenceGroth16Verifier");
+        const stateGroth16 = await StateOfResidenceGroth16Verifier.deploy();
         await stateGroth16.waitForDeployment();
         const stateGroth16Address = await stateGroth16.getAddress();
 
-        // CORRECTED LINE: Use the singular "Verifier", which matches your contract name.
         const StateOfResidenceVerifier = await ethers.getContractFactory("StateOfResidenceVerifier");
         const stateOfResidenceVerifier = await StateOfResidenceVerifier.deploy(attesterAddress, stateGroth16Address);
         await stateOfResidenceVerifier.waitForDeployment();

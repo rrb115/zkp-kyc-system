@@ -14,10 +14,7 @@ async function completeVerifications() {
 
         const [, alice, bob, company] = await ethers.getSigners();
         
-        const { over18Verifier } = await Utils.getContracts(
-            deployments.attesterContract,
-            deployments.over18Verifier
-        );
+        const { over18Verifier } = await Utils.getContracts(deployments);
 
         const proofGenerator = new ProofGenerator();
         console.log("🛠️  Initializing proof generator...");

@@ -17,7 +17,9 @@ async function setupStateCircuit() {
     const wasmPath = path.join(buildDir, `${circuitName}_js/${circuitName}.wasm`);
     const zkeyFinal = path.join(buildDir, `${circuitName}_final.zkey`);
     const vkeyPath = path.join(buildDir, `verification_key_${circuitName.toLowerCase()}.json`);
-    const verifierPath = path.join(__dirname, `../contracts/${circuitName}Verifier.sol`);
+    
+    // CORRECTED: The generated verifier now has a unique name to avoid overwriting the main logic contract.
+    const verifierPath = path.join(__dirname, `../contracts/${circuitName}Groth16Verifier.sol`);
 
     try {
         console.log('📦 Compiling circuit...');

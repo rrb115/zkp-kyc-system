@@ -2,26 +2,26 @@
   "alice": {
     "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "name": "Alice",
-    "aadhaarNumber": "985150242104",
-    "birthYear": 2005,
-    "birthMonth": 12,
-    "birthDay": 14,
+    "aadhaarNumber": "790712838171",
+    "birthYear": 2004,
+    "birthMonth": 4,
+    "birthDay": 27,
     "userState": 27,
-    "stateSalt": 156839804,
-    "salt": "998511989",
-    "secret": "259475727284584289199661068874190612893191311301956105650476780161460993222"
+    "stateSalt": 496564722,
+    "salt": "821918291",
+    "secret": "271519731981615351688995937187846550365703138950840198269025953287389962464"
   },
   "bob": {
     "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     "name": "Bob",
-    "aadhaarNumber": "707555798751",
-    "birthYear": 2014,
-    "birthMonth": 8,
-    "birthDay": 14,
+    "aadhaarNumber": "792614646820",
+    "birthYear": 2009,
+    "birthMonth": 7,
+    "birthDay": 11,
     "userState": 29,
-    "stateSalt": 961561335,
-    "salt": "795091778",
-    "secret": "322156608108624916074836526711898882641428817416114251440132353885578922153"
+    "stateSalt": 350487914,
+    "salt": "932033162",
+    "secret": "236160399996325128988240066926393763168382582943264857115170498747857944946"
   },
   "company": {
     "address": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
